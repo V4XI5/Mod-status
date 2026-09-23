@@ -1,6 +1,19 @@
 {
-  "status": "working",
-  "date": "2026-09-23",
-  "tested_build": "25477059",
-  "latest_build": "25477059"
+  "latest_build": "25477059",
+  "mods": {
+    "internal-graphics": {
+      "label": "Enhanced Internal Graphics",
+      "badge": "status.json",
+      "status": "working",
+      "date": "2026-09-23",
+      "tested_build": "25477059"
+    },
+    "lod-fix": {
+      "label": "Lod-Fix",
+      "badge": "lodfix.json",
+      "status": "wip",
+      "date": "2026-09-23",
+      "tested_build": "25477059"
+    }
+  }
 }
