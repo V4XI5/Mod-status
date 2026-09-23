@@ -3,10 +3,10 @@
 Badges for the Nexus Mods pages:
 
     Enhanced Internal Graphics:
-    [img]https://raster.shields.io/endpoint.png?url=https://raw.githubusercontent.com/V4XI5/Mod-status/main/status.json[/img]
+    [img]https://raw.githubusercontent.com/V4XI5/Mod-status/main/status.png[/img]
 
     Lod-Fix:
-    [img]https://raster.shields.io/endpoint.png?url=https://raw.githubusercontent.com/V4XI5/Mod-status/main/lodfix.json[/img]
+    [img]https://raw.githubusercontent.com/V4XI5/Mod-status/main/lodfix.png[/img]
 
 ## How it works
 - Every 3 hours, GitHub Actions checks Crimson Desert's Steam build.
@@ -15,3 +15,5 @@ Badges for the Nexus Mods pages:
   - `working`: green, "Working as of <today>"
   - `broken`: red, "Broken since <today> - fix in progress"
   - `wip`: blue, "Being worked on"
+
+Badges are drawn by scripts/render.py with the Furore font (fonts/Furore.otf, free for commercial use).

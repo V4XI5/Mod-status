@@ -14,6 +14,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+from render import render
+
 APP_ID = "3321460"  # Crimson Desert on Steam
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / "state.json"
@@ -47,6 +49,7 @@ def write_badge(mod):
     (ROOT / mod["badge"]).write_text(json.dumps(
         {"schemaVersion": 1, "label": mod["label"], "message": message, "color": color},
         indent=2) + "\n")
+    render(mod["label"], message, color, ROOT / mod["badge"].replace(".json", ".png"))
 
 
 def main():
