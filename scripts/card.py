@@ -1,4 +1,4 @@
-"""Draws the animated status cards (GIF) with a blinking status light.
+"""Draws the animated status cards (GIF); the status text blinks letter by letter.
 
 Usage: python scripts/card.py OUT_DIR [SYNC_NUMBER]
 Reads state.json and writes OUT_DIR/<mod key>.gif for every mod.
@@ -19,7 +19,7 @@ ZOOM = 1.5               # output is 1.5x the layout size (960x276)
 SS = 3                   # supersampling for smooth edges
 U = SS * ZOOM            # pixels per layout unit while drawing
 OUT_W, OUT_H = round(W * ZOOM), round(H * ZOOM)
-FRAMES, FRAME_MS = 16, 90
+FRAMES, FRAME_MS = 20, 80
 
 BG = (41, 41, 46)        # Nexus Mods page background (#29292E)
 ORANGE = (255, 119, 0)   # Nexus Mods orange (#FF7700)
@@ -75,13 +75,6 @@ def static_layer(mod, state, sync_no, now):
     img = Image.new("RGBA", (s(W), s(H)), BG + (255,))
     d = ImageDraw.Draw(img)
 
-    # soft status-coloured glow behind the light, faded out before the edges
-    # so the card blends into the Nexus page background
-    haze = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(haze).ellipse([s(-10), s(10), s(160), s(130)], fill=color + (34,))
-    img.alpha_composite(edge_fade(haze.filter(ImageFilter.GaussianBlur(s(30)))))
-    d = ImageDraw.Draw(img)
-
     # header
     small = font(9)
     d.text((s(26), s(20)), "LIVE STATUS  //  AUTO-CHECKED", font=small, fill=ORANGE + (255,), anchor="lm")
@@ -91,12 +84,9 @@ def static_layer(mod, state, sync_no, now):
         x = W - 22 - k * 6
         d.line([(s(x), s(30)), (s(x), s(34))], fill=ORANGE + (170,), width=s(0.8))
 
-    # title + status
+    # title (the status line underneath is drawn per frame, see status_layer)
     title = mod["label"].upper()
-    d.text((s(80), s(60)), title, font=fit_font(title, 26, W - 80 - 24), fill=WHITE + (255,), anchor="lm")
-    d.polygon([(s(80), s(83)), (s(80), s(95)), (s(88), s(89))], fill=color + (255,))
-    glow_text(img, (s(96), s(89)), label, font(15), color, glow=s(2))
-    d = ImageDraw.Draw(img)
+    d.text((s(26), s(60)), title, font=fit_font(title, 26, W - 26 - 24), fill=WHITE + (255,), anchor="lm")
 
     # data row
     d.line([(s(20), s(112)), (s(W - 20), s(112))], fill=ORANGE + (70,), width=s(0.8))
@@ -118,44 +108,57 @@ def static_layer(mod, state, sync_no, now):
     return img.resize((OUT_W, OUT_H), Image.LANCZOS)
 
 
-def light(color, level):
-    """The blinking status light, returned at output resolution; level 0..1."""
-    size = 80  # layout units
-    L = Image.new("RGBA", (s(size), s(size)), (0, 0, 0, 0))
-    cx = cy = s(size) // 2
-    dim = tuple(int(v * 0.35) for v in color)
-    lit = tuple(int(dim[k] + (color[k] - dim[k]) * level) for k in range(3))
-    halo = Image.new("RGBA", L.size, (0, 0, 0, 0))
-    r = s(20)
-    ImageDraw.Draw(halo).ellipse([cx - r, cy - r, cx + r, cy + r], fill=color + (int(140 * level),))
-    L.alpha_composite(halo.filter(ImageFilter.GaussianBlur(s(8))))
-    d = ImageDraw.Draw(L)
-    r = s(13)
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=ORANGE + (200,), width=s(1.5))
-    r = s(10)
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=lit + (255,))
-    r = s(3.5)  # specular highlight
-    d.ellipse([cx - r - s(3), cy - r - s(3), cx + r - s(3), cy + r - s(3)],
-              fill=(255, 255, 255, int(40 + 150 * level)))
-    out = round(size * ZOOM)
-    return L.resize((out, out), Image.LANCZOS)
+GRAY = (95, 95, 102)
+STATUS_BOX = (20, 78, W - 20, 102)   # layout units; maps to whole output pixels at ZOOM 1.5
+
+
+def mix(a, b, t):
+    return tuple(round(a[k] + (b[k] - a[k]) * t) for k in range(3))
+
+
+def status_layer(label, color, t):
+    """'> LABEL' where each letter blinks between the status colour and gray, in a wave
+    running left to right; t is the loop position 0..1. Returned at output resolution."""
+    x0, y0, x1, y1 = STATUS_BOX
+    layer = Image.new("RGBA", (s(x1 - x0), s(y1 - y0)), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    cy = 89 - y0
+    chars = [c for c in label if c != " "]
+    step = 1 / (len(chars) + 3)
+
+    def lit(k):  # 1 = full colour, 0 = gray
+        return 0.5 + 0.5 * math.cos(2 * math.pi * (t - k * step))
+
+    d.polygon([(s(26 - x0), s(cy - 6)), (s(26 - x0), s(cy + 6)), (s(34 - x0), s(cy))],
+              fill=mix(GRAY, color, lit(-1)) + (255,))
+    f = font(15)
+    k = 0
+    for i, ch in enumerate(label):
+        if ch == " ":
+            continue
+        x = 42 - x0 + f.getlength(label[:i]) / U
+        d.text((s(x), s(cy)), ch, font=f, fill=mix(GRAY, color, lit(k)) + (255,), anchor="lm")
+        k += 1
+    return layer.resize((round((x1 - x0) * ZOOM), round((y1 - y0) * ZOOM)), Image.LANCZOS)
 
 
 def render(mod, state, sync_no, now, out_path):
     color = STATUS[mod["status"]][1]
     base = static_layer(mod, state, sync_no, now)
     frames = []
+    label = STATUS[mod["status"]][0]
+    box_xy = (round(STATUS_BOX[0] * ZOOM), round(STATUS_BOX[1] * ZOOM))
     for f in range(FRAMES):
         t = f / FRAMES
-        level = 0.5 + 0.5 * math.cos(2 * math.pi * t)          # smooth pulse
+        level = 0.5 + 0.5 * math.cos(2 * math.pi * t)
         fr = base.copy()
-        fr.alpha_composite(light(color, level), (round((44 - 40) * ZOOM), round((66 - 40) * ZOOM)))
-        # "LIVE" dot blinks in step with the light
+        fr.alpha_composite(status_layer(label, color, t), box_xy)
+        # "LIVE" dot blinks once per loop
         dot = [round(v * ZOOM) for v in (13, 17, 19, 23)]
         ImageDraw.Draw(fr).ellipse(dot, fill=(ORANGE if level > 0.5 else DIM) + (255,))
         frames.append(fr.convert("RGB"))
 
-    # one shared palette built from the light-on and light-off frames
+    # one shared palette built from two frames half a loop apart
     sheet = Image.new("RGB", (OUT_W, OUT_H * 2))
     sheet.paste(frames[0], (0, 0))
     sheet.paste(frames[FRAMES // 2], (0, OUT_H))
