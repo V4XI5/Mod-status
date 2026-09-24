@@ -9,6 +9,7 @@ Usage: python scripts/update.py check
 MOD is a key under "mods" in state.json, e.g. internal-graphics or lod-fix.
 """
 import json
+import re
 import sys
 import urllib.request
 from datetime import datetime, timezone
@@ -29,6 +30,23 @@ def current_build():
     with urllib.request.urlopen(req, timeout=30) as r:
         data = json.load(r)
     return data["data"][APP_ID]["depots"]["branches"]["public"]["buildid"]
+
+
+def current_version():
+    """Game version from the newest "Patch Notes Version x.y.z" post on Steam, or None."""
+    url = (f"https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid={APP_ID}"
+           "&count=20&maxlength=1&feeds=steam_community_announcements")
+    try:
+        with urllib.request.urlopen(url, timeout=30) as r:
+            items = json.load(r)["appnews"]["newsitems"]
+    except Exception as e:
+        print(f"warning: could not read Steam news: {e}")
+        return None
+    for item in items:
+        m = re.search(r"patch notes.*?version\s*v?(\d+(?:\.\d+)+)", item["title"], re.I)
+        if m:
+            return m.group(1)
+    return None
 
 
 def pretty(iso_date):
@@ -69,6 +87,7 @@ def main():
         mods[args[0]].update(status=args[1], date=today, tested_build=build)
 
     state["latest_build"] = build
+    state["latest_version"] = current_version() or state.get("latest_version")
     STATE.write_text(json.dumps(state, indent=2) + "\n")
     for key, mod in mods.items():
         write_badge(mod)

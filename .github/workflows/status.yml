@@ -2,7 +2,7 @@ name: Mod status
 
 on:
   schedule:
-    - cron: "0 */3 * * *"  # every 3 hours
+    - cron: "17 * * * *"  # every hour: live sync + game update check
   workflow_dispatch:
     inputs:
       mod:
@@ -25,6 +25,9 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: mod-status
+
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -35,16 +38,29 @@ jobs:
           python-version: "3.12"
       - name: Install Pillow
         run: pip install pillow
-      - name: Update badges
+      - name: Update status
         run: |
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.mode }}" = "check" ]; then
             python scripts/update.py check
           else
             python scripts/update.py "${{ inputs.mod }}" "${{ inputs.mode }}"
           fi
-      - name: Commit if changed
+      - name: Save status if it changed
         run: |
           git config user.name "status-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add state.json *.json *.png
           git diff --cached --quiet || (git commit -m "Update mod status" && git push)
+      - name: Draw live cards
+        run: python scripts/card.py _cards ${{ github.run_number }}
+      # The cards change every hour (sync time), so they live on a separate
+      # branch that is replaced each run instead of growing the history.
+      - name: Publish cards to the badges branch
+        run: |
+          cd _cards
+          git init -q -b badges
+          git config user.name "status-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Live status cards"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" badges
