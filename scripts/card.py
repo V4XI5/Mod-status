@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 FONT = ROOT / "fonts" / "Furore.otf"
@@ -18,9 +18,9 @@ W, H = 640, 184          # final card size, same for every mod
 SS = 3                   # supersampling for the static layer
 FRAMES, FRAME_MS = 16, 90
 
-BG = (6, 10, 16)
+BG = (41, 41, 46)        # Nexus Mods page background (#29292E)
 CYAN = (34, 211, 238)
-DIM = (70, 110, 130)
+DIM = (125, 150, 165)
 WHITE = (235, 245, 250)
 STATUS = {
     "working":    ("WORKING",                  (57, 255, 136), "VERIFIED"),
@@ -57,33 +57,34 @@ def s(v):
     return round(v * SS)
 
 
+def edge_fade(layer):
+    """Multiplies a layer's alpha by a soft mask that reaches zero at the card edges."""
+    mask = Image.new("L", layer.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([s(24), s(20), s(W - 24), s(H - 20)], radius=s(20), fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(s(12)))
+    r, g, b, a = layer.split()
+    a = Image.composite(a, Image.new("L", layer.size, 0), mask)
+    return Image.merge("RGBA", (r, g, b, a))
+
+
 def static_layer(mod, state, sync_no, now):
     label, color, date_label = STATUS[mod["status"]]
     img = Image.new("RGBA", (s(W), s(H)), BG + (255,))
     d = ImageDraw.Draw(img)
 
-    # faint grid
+    # faint grid + status-coloured haze behind the light, faded out towards
+    # the edges so the card blends into the Nexus page background
+    fx = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(fx)
     for x in range(0, W, 16):
-        d.line([(s(x), 0), (s(x), s(H))], fill=CYAN + (10,), width=1)
+        d.line([(s(x), 0), (s(x), s(H))], fill=CYAN + (14,), width=1)
     for y in range(0, H, 16):
-        d.line([(0, s(y)), (s(W), s(y))], fill=CYAN + (10,), width=1)
-
-    # status-coloured haze behind the light
+        d.line([(0, s(y)), (s(W), s(y))], fill=CYAN + (14,), width=1)
     haze = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(haze).ellipse([s(-40), s(10), s(160), s(130)], fill=color + (40,))
-    img.alpha_composite(haze.filter(ImageFilter.GaussianBlur(s(30))))
+    ImageDraw.Draw(haze).ellipse([s(-10), s(10), s(160), s(130)], fill=color + (40,))
+    fx.alpha_composite(haze.filter(ImageFilter.GaussianBlur(s(30))))
+    img.alpha_composite(edge_fade(fx))
     d = ImageDraw.Draw(img)
-
-    # chamfered HUD frame
-    c, i = 16, 4
-    frame = [(i + c, i), (W - i, i), (W - i, H - i - c), (W - i - c, H - i), (i, H - i), (i, i + c)]
-    d.polygon([(s(x), s(y)) for x, y in frame], outline=CYAN + (110,), width=s(1.2))
-    # bright corner brackets
-    for pts in ([(i, i + c + 22), (i, i + c), (i + c, i), (i + c + 22, i)],
-                [(W - i, H - i - c - 22), (W - i, H - i - c), (W - i - c, H - i), (W - i - c - 22, H - i)],
-                [(W - i - 30, i), (W - i, i), (W - i, i + 30)],
-                [(i, H - i - 30), (i, H - i), (i + 30, H - i)]):
-        d.line([(s(x), s(y)) for x, y in pts], fill=CYAN + (255,), width=s(2.2))
 
     # header
     small = font(9)
@@ -124,7 +125,7 @@ def static_layer(mod, state, sync_no, now):
     sd = ImageDraw.Draw(scan)
     for y in range(0, s(H), s(3)):
         sd.line([(0, y), (s(W), y)], fill=(0, 0, 0, 55), width=SS)
-    img.alpha_composite(scan)
+    img.alpha_composite(edge_fade(scan))
     return img.resize((W, H), Image.LANCZOS)
 
 
@@ -169,7 +170,18 @@ def render(mod, state, sync_no, now, out_path):
     sheet.paste(frames[0], (0, 0))
     sheet.paste(frames[FRAMES // 2], (0, H))
     pal = sheet.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
-    q = [fr.quantize(palette=pal, dither=Image.Dither.NONE) for fr in frames]
+    # reserve the last palette slot for the exact page colour so the edges are seamless
+    entries = (pal.getpalette() + [0] * 768)[:768]
+    entries[765:768] = BG
+    pal.putpalette(entries)
+    q = []
+    for fr in frames:
+        qf = fr.quantize(palette=pal, dither=Image.Dither.NONE)
+        # Pillow's palette lookup is approximate, so snap near-page-colour pixels to the exact colour
+        exact = Image.eval(ImageChops.difference(fr, Image.new("RGB", fr.size, BG)).convert("L"),
+                           lambda v: 255 if v <= 3 else 0)
+        qf.paste(255, mask=exact)
+        q.append(qf)
     q[0].save(out_path, save_all=True, append_images=q[1:], duration=FRAME_MS, loop=0, optimize=True)
 
 
