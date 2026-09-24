@@ -1,6 +1,6 @@
 # Crimson Desert mod status badges
 
-Live status cards (animated, updated every hour):
+Live status cards (animated, updated every 5 minutes):
 
     Enhanced Internal Graphics:
     [img]https://raw.githubusercontent.com/V4XI5/Mod-status/badges/internal-graphics.gif[/img]
@@ -19,7 +19,7 @@ Badges for the Nexus Mods pages:
     [img]https://raw.githubusercontent.com/V4XI5/Mod-status/main/lodfix.png[/img]
 
 ## How it works
-- Every hour, GitHub Actions checks Crimson Desert's Steam build.
+- Every 5 minutes, GitHub Actions checks Crimson Desert's Steam build.
   If the game updated since a mod was last tested, its badge turns orange: "Game updated <date> - untested".
 - To set a status: **Actions -> Mod status -> Run workflow**, pick the mod, then:
   - `working`: green, "Working as of <today>"
