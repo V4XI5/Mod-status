@@ -2,7 +2,8 @@
 
 Usage: python scripts/update.py check
        python scripts/update.py MOD working|broken|wip
-  check   - run on a schedule; flags working mods if Crimson Desert updated since their last test
+  check   - run on a schedule; when Crimson Desert updates, working mods switch to their
+            on_patch status from state.json (unverified by default)
   working - you tested the mod on the current game build and it works
   broken  - the mod is known to be broken on the current game build
   wip     - the mod is being worked on
@@ -79,8 +80,10 @@ def main():
 
     if args[0] == "check":
         for mod in mods.values():
+            # on a new game build, each mod switches to its "on_patch" status:
+            # "broken" for mods that always break on a patch, "unverified" otherwise
             if mod["status"] == "working" and build != mod["tested_build"]:
-                mod.update(status="unverified", date=today)
+                mod.update(status=mod.get("on_patch", "unverified"), date=today)
     else:
         if len(args) != 2 or args[0] not in mods or args[1] not in ("working", "broken", "wip"):
             sys.exit(__doc__)
