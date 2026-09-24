@@ -1,4 +1,4 @@
-"""Draws the animated sci-fi status cards (GIF) with a blinking status light.
+"""Draws the animated status cards (GIF) with a blinking status light.
 
 Usage: python scripts/card.py OUT_DIR [SYNC_NUMBER]
 Reads state.json and writes OUT_DIR/<mod key>.gif for every mod.
@@ -14,14 +14,17 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 FONT = ROOT / "fonts" / "Furore.otf"
 
-W, H = 640, 184          # final card size, same for every mod
-SS = 3                   # supersampling for the static layer
+W, H = 640, 184          # layout units; every coordinate below uses these
+ZOOM = 1.5               # output is 1.5x the layout size (960x276)
+SS = 3                   # supersampling for smooth edges
+U = SS * ZOOM            # pixels per layout unit while drawing
+OUT_W, OUT_H = round(W * ZOOM), round(H * ZOOM)
 FRAMES, FRAME_MS = 16, 90
 
 BG = (41, 41, 46)        # Nexus Mods page background (#29292E)
-CYAN = (34, 211, 238)
-DIM = (125, 150, 165)
-WHITE = (235, 245, 250)
+ORANGE = (255, 119, 0)   # Nexus Mods orange (#FF7700)
+DIM = (150, 150, 158)
+WHITE = (236, 236, 240)
 STATUS = {
     "working":    ("WORKING",                  (57, 255, 136), "VERIFIED"),
     "unverified": ("GAME UPDATED - UNTESTED",  (255, 201, 51), "PATCH DETECTED"),
@@ -31,11 +34,11 @@ STATUS = {
 
 
 def font(px):
-    return ImageFont.truetype(str(FONT), round(px * SS))
+    return ImageFont.truetype(str(FONT), round(px * U))
 
 
 def fit_font(text, px, max_w):
-    while px > 8 and font(px).getlength(text) > max_w * SS:
+    while px > 8 and font(px).getlength(text) > max_w * U:
         px -= 0.5
     return font(px)
 
@@ -54,7 +57,7 @@ def glow_text(layer, xy, text, f, color, anchor="lm", glow=6):
 
 
 def s(v):
-    return round(v * SS)
+    return round(v * U)
 
 
 def edge_fade(layer):
@@ -72,39 +75,31 @@ def static_layer(mod, state, sync_no, now):
     img = Image.new("RGBA", (s(W), s(H)), BG + (255,))
     d = ImageDraw.Draw(img)
 
-    # faint grid + status-coloured haze behind the light, faded out towards
-    # the edges so the card blends into the Nexus page background
-    fx = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(fx)
-    for x in range(0, W, 16):
-        d.line([(s(x), 0), (s(x), s(H))], fill=CYAN + (14,), width=1)
-    for y in range(0, H, 16):
-        d.line([(0, s(y)), (s(W), s(y))], fill=CYAN + (14,), width=1)
+    # soft status-coloured glow behind the light, faded out before the edges
+    # so the card blends into the Nexus page background
     haze = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(haze).ellipse([s(-10), s(10), s(160), s(130)], fill=color + (40,))
-    fx.alpha_composite(haze.filter(ImageFilter.GaussianBlur(s(30))))
-    img.alpha_composite(edge_fade(fx))
+    ImageDraw.Draw(haze).ellipse([s(-10), s(10), s(160), s(130)], fill=color + (34,))
+    img.alpha_composite(edge_fade(haze.filter(ImageFilter.GaussianBlur(s(30)))))
     d = ImageDraw.Draw(img)
 
     # header
     small = font(9)
-    d.text((s(26), s(20)), "MOD STATUS MONITOR  //  LIVE FEED", font=small, fill=CYAN + (230,), anchor="lm")
+    d.text((s(26), s(20)), "LIVE STATUS  //  AUTO-CHECKED", font=small, fill=ORANGE + (255,), anchor="lm")
     d.text((s(W - 22), s(20)), f"SYNC #{sync_no:05d}", font=small, fill=DIM + (255,), anchor="rm")
-    d.line([(s(20), s(32)), (s(W - 20), s(32))], fill=CYAN + (60,), width=s(1))
+    d.line([(s(20), s(32)), (s(W - 20), s(32))], fill=ORANGE + (70,), width=s(0.8))
     for k in range(6):  # tick marks
         x = W - 22 - k * 6
-        d.line([(s(x), s(30)), (s(x), s(34))], fill=CYAN + (160,), width=s(1))
+        d.line([(s(x), s(30)), (s(x), s(34))], fill=ORANGE + (170,), width=s(0.8))
 
     # title + status
     title = mod["label"].upper()
-    glow_text(img, (s(80), s(60)), title, fit_font(title, 26, W - 80 - 24), WHITE, glow=s(3))
-    d = ImageDraw.Draw(img)
+    d.text((s(80), s(60)), title, font=fit_font(title, 26, W - 80 - 24), fill=WHITE + (255,), anchor="lm")
     d.polygon([(s(80), s(83)), (s(80), s(95)), (s(88), s(89))], fill=color + (255,))
-    glow_text(img, (s(96), s(89)), label, font(15), color, glow=s(4))
+    glow_text(img, (s(96), s(89)), label, font(15), color, glow=s(2))
     d = ImageDraw.Draw(img)
 
     # data row
-    d.line([(s(20), s(112)), (s(W - 20), s(112))], fill=CYAN + (60,), width=s(1))
+    d.line([(s(20), s(112)), (s(W - 20), s(112))], fill=ORANGE + (70,), width=s(0.8))
     patch = state.get("latest_version") or "?"
     cols = [
         ("GAME PATCH", f"V{patch}", f"BUILD {state['latest_build']}"),
@@ -114,42 +109,36 @@ def static_layer(mod, state, sync_no, now):
     for n, (lab, val, sub) in enumerate(cols):
         x = 26 + n * 205
         if n:
-            d.line([(s(x - 12), s(122)), (s(x - 12), s(166))], fill=CYAN + (45,), width=s(1))
+            d.line([(s(x - 12), s(122)), (s(x - 12), s(166))], fill=ORANGE + (50,), width=s(0.8))
         d.text((s(x), s(128)), lab, font=font(8.5), fill=DIM + (255,), anchor="lm")
         d.text((s(x), s(146)), val, font=font(13), fill=WHITE + (255,), anchor="lm")
         if sub:
-            d.text((s(x), s(163)), sub, font=font(8.5), fill=CYAN + (200,), anchor="lm")
+            d.text((s(x), s(163)), sub, font=font(8.5), fill=ORANGE + (230,), anchor="lm")
 
-    # scanlines
-    scan = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    sd = ImageDraw.Draw(scan)
-    for y in range(0, s(H), s(3)):
-        sd.line([(0, y), (s(W), y)], fill=(0, 0, 0, 55), width=SS)
-    img.alpha_composite(edge_fade(scan))
-    return img.resize((W, H), Image.LANCZOS)
+    return img.resize((OUT_W, OUT_H), Image.LANCZOS)
 
 
 def light(color, level):
-    """The blinking status light at final resolution; level 0..1."""
-    size = 80
-    L = Image.new("RGBA", (size * SS, size * SS), (0, 0, 0, 0))
-    d = ImageDraw.Draw(L)
-    cx = cy = size * SS // 2
+    """The blinking status light, returned at output resolution; level 0..1."""
+    size = 80  # layout units
+    L = Image.new("RGBA", (s(size), s(size)), (0, 0, 0, 0))
+    cx = cy = s(size) // 2
     dim = tuple(int(v * 0.35) for v in color)
     lit = tuple(int(dim[k] + (color[k] - dim[k]) * level) for k in range(3))
     halo = Image.new("RGBA", L.size, (0, 0, 0, 0))
-    r = s(22)
-    ImageDraw.Draw(halo).ellipse([cx - r, cy - r, cx + r, cy + r], fill=color + (int(170 * level),))
-    L.alpha_composite(halo.filter(ImageFilter.GaussianBlur(s(9))))
+    r = s(20)
+    ImageDraw.Draw(halo).ellipse([cx - r, cy - r, cx + r, cy + r], fill=color + (int(140 * level),))
+    L.alpha_composite(halo.filter(ImageFilter.GaussianBlur(s(8))))
     d = ImageDraw.Draw(L)
     r = s(13)
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=CYAN + (180,), width=s(1.5))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=ORANGE + (200,), width=s(1.5))
     r = s(10)
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=lit + (255,))
     r = s(3.5)  # specular highlight
     d.ellipse([cx - r - s(3), cy - r - s(3), cx + r - s(3), cy + r - s(3)],
               fill=(255, 255, 255, int(40 + 150 * level)))
-    return L.resize((size, size), Image.LANCZOS)
+    out = round(size * ZOOM)
+    return L.resize((out, out), Image.LANCZOS)
 
 
 def render(mod, state, sync_no, now, out_path):
@@ -160,15 +149,16 @@ def render(mod, state, sync_no, now, out_path):
         t = f / FRAMES
         level = 0.5 + 0.5 * math.cos(2 * math.pi * t)          # smooth pulse
         fr = base.copy()
-        fr.alpha_composite(light(color, level), (44 - 40, 66 - 40))
+        fr.alpha_composite(light(color, level), (round((44 - 40) * ZOOM), round((66 - 40) * ZOOM)))
         # "LIVE" dot blinks in step with the light
-        ImageDraw.Draw(fr).ellipse([13, 17, 19, 23], fill=(CYAN if level > 0.5 else DIM) + (255,))
+        dot = [round(v * ZOOM) for v in (13, 17, 19, 23)]
+        ImageDraw.Draw(fr).ellipse(dot, fill=(ORANGE if level > 0.5 else DIM) + (255,))
         frames.append(fr.convert("RGB"))
 
     # one shared palette built from the light-on and light-off frames
-    sheet = Image.new("RGB", (W, H * 2))
+    sheet = Image.new("RGB", (OUT_W, OUT_H * 2))
     sheet.paste(frames[0], (0, 0))
-    sheet.paste(frames[FRAMES // 2], (0, H))
+    sheet.paste(frames[FRAMES // 2], (0, OUT_H))
     pal = sheet.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
     # reserve the last palette slot for the exact page colour so the edges are seamless
     entries = (pal.getpalette() + [0] * 768)[:768]

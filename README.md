@@ -1,6 +1,6 @@
 # Crimson Desert mod status badges
 
-Live status cards (animated, updated every 5 minutes):
+Live status cards (animated, 960x276, updated every 5 minutes):
 
     Enhanced Internal Graphics:
     [img]https://raw.githubusercontent.com/V4XI5/Mod-status/badges/internal-graphics.gif[/img]
