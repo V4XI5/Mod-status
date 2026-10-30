@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "label": "Lod-Fix",
-  "message": "Working as of Sep 24, 2026",
-  "color": "brightgreen"
+  "message": "Broken since Oct 30, 2026 - fix in progress",
+  "color": "red"
 }
