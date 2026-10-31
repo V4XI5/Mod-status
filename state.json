@@ -4,9 +4,9 @@
     "internal-graphics": {
       "label": "Enhanced Internal Graphics",
       "badge": "status.json",
-      "status": "unverified",
-      "date": "2026-10-30",
-      "tested_build": "25477059",
+      "status": "working",
+      "date": "2026-10-31",
+      "tested_build": "26345091",
       "on_patch": "unverified"
     },
     "lod-fix": {
