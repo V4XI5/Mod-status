@@ -1,11 +1,11 @@
 {
-  "latest_build": "26345091",
+  "latest_build": "26356046",
   "mods": {
     "internal-graphics": {
       "label": "Enhanced Internal Graphics",
       "badge": "status.json",
-      "status": "working",
-      "date": "2026-10-31",
+      "status": "unverified",
+      "date": "2026-11-01",
       "tested_build": "26345091",
       "on_patch": "unverified"
     },
@@ -18,5 +18,5 @@
       "on_patch": "broken"
     }
   },
-  "latest_version": "2.04.03"
+  "latest_version": "2.04.04"
 }
