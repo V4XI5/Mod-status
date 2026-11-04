@@ -1,5 +1,5 @@
 {
-  "latest_build": "26361232",
+  "latest_build": "26423880",
   "mods": {
     "internal-graphics": {
       "label": "Enhanced Internal Graphics",
@@ -18,5 +18,5 @@
       "on_patch": "broken"
     }
   },
-  "latest_version": "2.04.05"
+  "latest_version": "2.04.06"
 }
